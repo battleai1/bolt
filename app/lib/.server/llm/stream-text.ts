@@ -195,16 +195,44 @@ export async function streamText(props: {
 
   // console.log(systemPrompt, processedMessages);
 
-  return await _streamText({
-    model: provider.getModelInstance({
-      model: modelDetails.name,
-      serverEnv,
-      apiKeys,
-      providerSettings,
-    }),
-    system: chatMode === 'build' ? systemPrompt : discussPrompt(),
-    maxTokens: dynamicMaxTokens,
-    messages: convertToCoreMessages(processedMessages as any),
-    ...options,
-  });
+  try {
+    return await _streamText({
+      model: provider.getModelInstance({
+        model: modelDetails.name,
+        serverEnv,
+        apiKeys,
+        providerSettings,
+      }),
+      system: chatMode === 'build' ? systemPrompt : discussPrompt(),
+      maxCompletionTokens: dynamicMaxTokens, // Use maxCompletionTokens instead of maxTokens
+      messages: convertToCoreMessages(processedMessages as any),
+      ...options,
+    });
+  } catch (error: any) {
+    // Handle stream-start error specifically
+    if (error.message?.includes('stream-start') || error.message?.includes('Unhandled chunk type')) {
+      logger.error('Stream initialization error, retrying with fallback configuration:', error);
+      
+      // Retry with a simpler configuration
+      return await _streamText({
+        model: provider.getModelInstance({
+          model: modelDetails.name,
+          serverEnv,
+          apiKeys,
+          providerSettings,
+        }),
+        system: chatMode === 'build' ? systemPrompt : discussPrompt(),
+        maxCompletionTokens: dynamicMaxTokens,
+        messages: convertToCoreMessages(processedMessages as any),
+        // Remove any potentially problematic options
+        ...Object.fromEntries(
+          Object.entries(options || {}).filter(([key]) => 
+            !['experimental_streamMode', 'streamMode', 'experimental_telemetry'].includes(key)
+          )
+        ),
+      });
+    }
+    
+    throw error;
+  }
 }

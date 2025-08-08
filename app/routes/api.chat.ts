@@ -313,13 +313,22 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         });
 
         (async () => {
-          for await (const part of result.fullStream) {
-            if (part.type === 'error') {
-              const error: any = part.error;
-              logger.error(`${error}`);
-
+          try {
+            for await (const part of result.fullStream) {
+              if (part.type === 'error') {
+                const error: any = part.error;
+                logger.error(`Stream error: ${error}`);
+                return;
+              }
+            }
+          } catch (streamError: any) {
+            // Handle stream processing errors
+            if (streamError.message?.includes('stream-start') || streamError.message?.includes('Unhandled chunk type')) {
+              logger.error('Stream chunk handling error:', streamError);
+              // Don't throw here, let the stream continue
               return;
             }
+            logger.error('Unexpected stream error:', streamError);
           }
         })();
         result.mergeIntoDataStream(dataStream);
