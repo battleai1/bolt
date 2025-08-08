@@ -83,8 +83,25 @@ export default class OpenAIProvider extends BaseProvider {
 
     const openai = createOpenAI({
       apiKey,
+      compatibility: 'strict', // Use strict mode for better compatibility
     });
 
-    return openai(model);
+    // For ChatGPT models, we need to handle the max_completion_tokens parameter
+    const modelInstance = openai(model);
+    
+    // Override the doGenerate method to handle parameter transformation
+    if (model.toLowerCase().includes('chatgpt')) {
+      const originalDoGenerate = modelInstance.doGenerate;
+      modelInstance.doGenerate = async function(options: any) {
+        // Transform max_tokens to max_completion_tokens for ChatGPT models
+        if (options.maxTokens !== undefined) {
+          options.maxCompletionTokens = options.maxTokens;
+          delete options.maxTokens;
+        }
+        return originalDoGenerate.call(this, options);
+      };
+    }
+
+    return modelInstance;
   }
 }
