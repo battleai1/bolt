@@ -83,9 +83,45 @@ export default class OpenAIProvider extends BaseProvider {
 
     const openai = createOpenAI({
       apiKey,
-      compatibility: 'compatible', // Use compatible mode for ChatGPT models
+      compatibility: 'compatible',
     });
 
-    return openai(model);
+    const modelInstance = openai(model);
+
+    // Handle ChatGPT-5 parameter compatibility
+    if (model.toLowerCase().includes('chatgpt-5') || model.toLowerCase().includes('chatgpt-') || model.toLowerCase().startsWith('chatgpt-')) {
+      const originalProvider = modelInstance.provider;
+      
+      // Override the provider to handle parameter transformation
+      modelInstance.provider = {
+        ...originalProvider,
+        doGenerate: async (options: any) => {
+          // Transform parameters for ChatGPT models
+          const transformedOptions = { ...options };
+          
+          // Map max_tokens to max_completion_tokens for ChatGPT
+          if (transformedOptions.maxTokens !== undefined) {
+            transformedOptions.maxCompletionTokens = transformedOptions.maxTokens;
+            delete transformedOptions.maxTokens;
+          }
+          
+          return originalProvider.doGenerate.call(originalProvider, transformedOptions);
+        },
+        doStream: async (options: any) => {
+          // Transform parameters for ChatGPT models
+          const transformedOptions = { ...options };
+          
+          // Map max_tokens to max_completion_tokens for ChatGPT
+          if (transformedOptions.maxTokens !== undefined) {
+            transformedOptions.maxCompletionTokens = transformedOptions.maxTokens;
+            delete transformedOptions.maxTokens;
+          }
+          
+          return originalProvider.doStream.call(originalProvider, transformedOptions);
+        }
+      };
+    }
+
+    return modelInstance;
   }
 }
